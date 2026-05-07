@@ -26,6 +26,7 @@ jobs:
 
       - name: Copy native plugins
         run: |
+          mkdir -p ios/App/Plugins
           cp -R native/Plugins/GameServerPlugin ios/App/Plugins/GameServerPlugin/
           cp -R native/Plugins/SaveDataPlugin ios/App/Plugins/SaveDataPlugin/
           cp native/AppDelegate.swift ios/App/App/AppDelegate.swift
