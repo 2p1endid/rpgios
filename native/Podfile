@@ -1,6 +1,7 @@
 platform :ios, '16.0'
 
 project 'App.xcodeproj'
+use_frameworks!
 
 def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
