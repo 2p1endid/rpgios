@@ -1,8 +1,8 @@
-import { TouchMapper } from './touch-mapper';
+import { TouchMapper, type GamepadButton } from './touch-mapper';
 
 interface DPadButton {
   el: HTMLElement;
-  dir: string;
+  dir: GamepadButton;
   active: boolean;
 }
 
@@ -19,7 +19,7 @@ export class VirtualGamepad {
     this.dpad = document.getElementById('dpad');
 
     // Set up D-pad buttons
-    const dirs = ['up', 'down', 'left', 'right'];
+    const dirs = ['up', 'down', 'left', 'right'] as const;
     for (const dir of dirs) {
       const el = document.querySelector(`.dpad-${dir}`) as HTMLElement;
       if (!el) continue;
