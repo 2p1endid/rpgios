@@ -44,12 +44,13 @@ jobs:
           p = Xcodeproj::Project.open('ios/App/App.xcodeproj')
           t = p.targets.find { |x| x.name == 'App' }
           g = p.main_group.find_subpath('App', true).find_subpath('Plugins', true)
+          g.path = 'Plugins'
           Dir.glob('ios/App/App/Plugins/**/*.swift').each do |f|
-            ref = g.new_file(f.sub('ios/App/', ''), :source_root)
+            ref = g.new_file(f.sub('ios/App/App/Plugins/', ''))
             t.source_build_phase.add_file_reference(ref) unless t.source_build_phase.files.any? { |bf| bf.file_ref&.path&.end_with?(File.basename(f)) }
           end
           Dir.glob('ios/App/App/Plugins/**/*.m').each do |f|
-            ref = g.new_file(f.sub('ios/App/', ''), :source_root)
+            ref = g.new_file(f.sub('ios/App/App/Plugins/', ''))
             t.source_build_phase.add_file_reference(ref) unless t.source_build_phase.files.any? { |bf| bf.file_ref&.path&.end_with?(File.basename(f)) }
           end
           p.save
