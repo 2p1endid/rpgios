@@ -104,7 +104,7 @@ export class GameLoader {
         }
       }
 
-      const blob = new Blob(chunks);
+      const blob = new Blob(chunks as BlobPart[]);
       const file = new File([blob], url.split('/').pop() || 'game.zip', { type: 'application/zip' });
       return this.importFromFile(file, onProgress);
     } catch (err: any) {
