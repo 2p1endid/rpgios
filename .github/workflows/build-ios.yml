@@ -21,6 +21,16 @@ jobs:
       - name: Build web shell
         run: npm run build
 
+      - name: Add iOS platform
+        run: npx cap add ios
+
+      - name: Copy native plugins
+        run: |
+          cp -R native/Plugins/GameServerPlugin ios/App/Plugins/GameServerPlugin/
+          cp -R native/Plugins/SaveDataPlugin ios/App/Plugins/SaveDataPlugin/
+          cp native/AppDelegate.swift ios/App/App/AppDelegate.swift
+          cp native/Podfile ios/App/Podfile
+
       - name: Sync Capacitor iOS
         run: npx cap sync ios
 
