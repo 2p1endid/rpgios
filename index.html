@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <title>RPG Maker Player</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #0d0d1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #e0e0e0;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ===== Launcher ===== */
+    #launcher {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      padding: 20px;
+      z-index: 10;
+    }
+    #launcher.hidden { display: none; }
+    .launcher-header {
+      text-align: center; padding: 24px 0 16px;
+    }
+    .launcher-header h1 {
+      font-size: 24px; font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .launcher-header p { font-size: 13px; color: #666; margin-top: 4px; }
+    .game-list {
+      flex: 1; overflow-y: auto;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px; padding: 8px 0;
+    }
+    .game-card {
+      background: #1a1a2e; border-radius: 12px;
+      padding: 14px; text-align: center;
+      cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+      border: 1px solid #2a2a3e;
+    }
+    .game-card:active { transform: scale(0.96); }
+    .game-card .game-icon {
+      font-size: 40px; margin-bottom: 8px;
+    }
+    .game-card .game-title {
+      font-size: 13px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .game-card .game-meta { font-size: 11px; color: #666; margin-top: 4px; }
+    .empty-state {
+      grid-column: 1 / -1; text-align: center;
+      padding: 60px 20px; color: #555;
+    }
+    .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .import-btn {
+      display: block; margin: 12px auto;
+      padding: 12px 32px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none; border-radius: 24px;
+      color: #fff; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .import-btn:active { opacity: 0.8; }
+    .import-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    /* ===== Game Container ===== */
+    #game-view { position: absolute; inset: 0; z-index: 5; display: none; }
+    #game-view.active { display: flex; align-items: center; justify-content: center; background: #000; }
+    #game-frame {
+      border: none; display: block;
+      width: 100%; height: 100%;
+    }
+
+    /* ===== Virtual Gamepad ===== */
+    #gamepad {
+      position: absolute; inset: 0; z-index: 20;
+      pointer-events: none; display: none;
+    }
+    #gamepad.active { display: block; }
+    #gamepad > * { pointer-events: auto; }
+
+    .dpad-zone {
+      position: absolute; bottom: 80px; left: 20px;
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 70%);
+      border: 2px solid rgba(255,255,255,0.15);
+    }
+    .dpad-dir {
+      position: absolute; width: 44px; height: 44px;
+      border-radius: 8px; background: rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: rgba(255,255,255,0.4);
+      transition: background 0.08s;
+    }
+    .dpad-dir:active, .dpad-dir.pressed { background: rgba(255,255,255,0.25); }
+    .dpad-up    { top: 4px; left: 48px; }
+    .dpad-down  { bottom: 4px; left: 48px; }
+    .dpad-left  { left: 4px; top: 48px; }
+    .dpad-right { right: 4px; top: 48px; }
+
+    .action-btns {
+      position: absolute; bottom: 90px; right: 20px;
+      display: flex; flex-direction: column; gap: 12px; align-items: center;
+    }
+    .action-btn {
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; letter-spacing: 1px;
+      transition: background 0.08s, transform 0.08s;
+    }
+    .action-btn:active { transform: scale(0.9); }
+    .btn-a {
+      background: rgba(99, 102, 241, 0.35);
+      border-color: rgba(99, 102, 241, 0.5);
+      color: #a5b4fc;
+    }
+    .btn-a:active { background: rgba(99, 102, 241, 0.6); }
+    .btn-b {
+      background: rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #fca5a5; width: 46px; height: 46px; font-size: 12px;
+    }
+    .btn-b:active { background: rgba(239, 68, 68, 0.55); }
+    .btn-menu {
+      position: absolute; top: 12px; right: 12px;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.5); font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+
+    /* ===== Game Overlay ===== */
+    #game-overlay {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 15;
+      display: none; padding: 8px 12px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+    }
+    #game-overlay.visible { display: flex; align-items: center; gap: 10px; }
+    .overlay-btn {
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+      color: #ccc; padding: 6px 14px; border-radius: 16px;
+      font-size: 12px; cursor: pointer; transition: background 0.15s;
+    }
+    .overlay-btn:active { background: rgba(255,255,255,0.2); }
+    .overlay-title { flex: 1; font-size: 12px; color: #999; text-align: center; }
+
+    /* ===== Settings Panel ===== */
+    #settings-panel {
+      position: absolute; inset: 0; z-index: 30;
+      background: rgba(0,0,0,0.85); display: none;
+      flex-direction: column; padding: 20px;
+    }
+    #settings-panel.open { display: flex; }
+    .settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .settings-header h2 { font-size: 20px; }
+    .settings-close { font-size: 24px; cursor: pointer; color: #999; padding: 8px; }
+    .settings-group { margin-bottom: 20px; }
+    .settings-group h3 { font-size: 14px; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .settings-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #222; }
+    .settings-row label { font-size: 14px; }
+    .settings-row select, .settings-row input[type="range"] { background: #1a1a2e; border: 1px solid #333; color: #e0e0e0; padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+
+    /* ===== Toast ===== */
+    #toast {
+      position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+      background: #333; color: #fff; padding: 10px 24px;
+      border-radius: 20px; font-size: 13px;
+      z-index: 40; opacity: 0; transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <!-- Launcher -->
+  <div id="launcher">
+    <div class="launcher-header">
+      <h1>RPG Maker Player</h1>
+      <p>在 iOS 上运行 RPG Maker MV 游戏</p>
+    </div>
+    <div class="import-actions">
+      <button class="import-btn" id="btn-import-file">从文件导入</button>
+      <button class="import-btn" id="btn-import-url">从 URL 导入</button>
+    </div>
+    <div class="game-list" id="game-list">
+      <div class="empty-state">
+        <div class="empty-icon">📂</div>
+        <p>还没有导入游戏</p>
+        <p style="font-size:12px;color:#444;margin-top:4px">导入一个 RPG Maker MV 游戏 ZIP 开始</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game View -->
+  <div id="game-view">
+    <iframe id="game-frame" sandbox="allow-scripts allow-same-origin allow-modals" allow="autoplay"></iframe>
+  </div>
+
+  <!-- Game Overlay -->
+  <div id="game-overlay">
+    <button class="overlay-btn" id="btn-back">← 返回</button>
+    <span class="overlay-title" id="overlay-title"></span>
+    <button class="overlay-btn" id="btn-toggle-gamepad">手柄</button>
+    <button class="overlay-btn" id="btn-open-settings">设置</button>
+  </div>
+
+  <!-- Virtual Gamepad -->
+  <div id="gamepad">
+    <button class="btn-menu" id="btn-game-menu">☰</button>
+    <div class="dpad-zone" id="dpad">
+      <div class="dpad-dir dpad-up" data-dir="up">▲</div>
+      <div class="dpad-dir dpad-down" data-dir="down">▼</div>
+      <div class="dpad-dir dpad-left" data-dir="left">◄</div>
+      <div class="dpad-dir dpad-right" data-dir="right">►</div>
+    </div>
+    <div class="action-btns">
+      <div class="action-btn btn-a" id="btn-a">A</div>
+      <div class="action-btn btn-b" id="btn-b">B</div>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div id="settings-panel">
+    <div class="settings-header">
+      <h2>设置</h2>
+      <span class="settings-close" id="btn-close-settings">✕</span>
+    </div>
+    <div class="settings-group">
+      <h3>显示</h3>
+      <div class="settings-row">
+        <label>缩放模式</label>
+        <select id="setting-scale-mode">
+          <option value="fit">适应屏幕</option>
+          <option value="fill">填充屏幕</option>
+          <option value="original">原始大小</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label>手柄透明度</label>
+        <input type="range" id="setting-gamepad-opacity" min="20" max="80" value="40">
+      </div>
+    </div>
+    <div class="settings-group">
+      <h3>按键</h3>
+      <div class="settings-row">
+        <label>按键重复速度</label>
+        <select id="setting-key-repeat">
+          <option value="slow">慢</option>
+          <option value="normal" selected>正常</option>
+          <option value="fast">快</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
