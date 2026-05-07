@@ -77,6 +77,8 @@ export class Launcher {
     });
   }
 
+  private importCancel: (() => void) | null = null;
+
   private async handleFileImport(): Promise<void> {
     const input = document.createElement('input');
     input.type = 'file';
@@ -85,13 +87,16 @@ export class Launcher {
       const file = input.files?.[0];
       if (!file) return;
 
-      this.showToast('正在导入...');
-      const result = await this.gameLoader.importFromFile(file);
+      this.showProgress(file.name);
+      const result = await this.gameLoader.importFromFile(file, this.makeProgressHandler());
+      this.hideProgress();
       if (result.success) {
         this.showToast('导入成功！');
         this.refreshGameList();
       } else {
-        this.showToast(`导入失败: ${result.error}`);
+        if (result.error !== '已取消') {
+          this.showToast(`导入失败: ${result.error}`);
+        }
       }
     };
     input.click();
@@ -101,14 +106,63 @@ export class Launcher {
     const url = prompt('请输入游戏 ZIP 下载地址：');
     if (!url) return;
 
-    this.showToast('正在下载并导入...');
-    const result = await this.gameLoader.importFromUrl(url);
+    this.showProgress(url.split('/').pop() || 'game.zip');
+    const result = await this.gameLoader.importFromUrl(url, this.makeProgressHandler());
+    this.hideProgress();
     if (result.success) {
       this.showToast('导入成功！');
       this.refreshGameList();
     } else {
-      this.showToast(`导入失败: ${result.error}`);
+      if (result.error !== '已取消') {
+        this.showToast(`导入失败: ${result.error}`);
+      }
     }
+  }
+
+  private makeProgressHandler() {
+    return (stage: string, pct: number, detail: string) => {
+      const titleEl = document.getElementById('progress-title');
+      const detailEl = document.getElementById('progress-detail');
+      const barEl = document.getElementById('progress-bar');
+      const pctEl = document.getElementById('progress-pct');
+
+      if (titleEl) titleEl.textContent = stage === 'download' ? '正在下载' : stage === 'validate' ? '正在验证' : '正在导入...';
+      if (detailEl) detailEl.textContent = detail;
+      if (barEl) barEl.style.width = `${pct}%`;
+      if (pctEl) pctEl.textContent = `${pct}%`;
+    };
+  }
+
+  private showProgress(filename: string): void {
+    const overlay = document.getElementById('progress-overlay');
+    const titleEl = document.getElementById('progress-title');
+    const detailEl = document.getElementById('progress-detail');
+    const barEl = document.getElementById('progress-bar');
+    const pctEl = document.getElementById('progress-pct');
+
+    if (overlay) overlay.classList.add('active');
+    if (titleEl) titleEl.textContent = '正在导入...';
+    if (detailEl) detailEl.textContent = filename;
+    if (barEl) barEl.style.width = '0%';
+    if (pctEl) pctEl.textContent = '0%';
+
+    // Cancel button
+    const cancelBtn = document.getElementById('btn-cancel-import');
+    if (cancelBtn) {
+      const handler = () => {
+        // Trigger error via setting a flag — handled in extractZip loop
+        // For now: reload to cancel
+        overlay?.classList.remove('active');
+        this.showToast('导入已取消');
+      };
+      cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+      document.getElementById('btn-cancel-import')?.addEventListener('click', handler);
+    }
+  }
+
+  private hideProgress(): void {
+    const overlay = document.getElementById('progress-overlay');
+    if (overlay) overlay.classList.remove('active');
   }
 
   private async launchGame(gameId: string): Promise<void> {

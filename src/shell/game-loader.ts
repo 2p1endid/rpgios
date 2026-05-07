@@ -2,6 +2,8 @@ import { GameManifest, GameManifestResult } from './game-manifest';
 import { GameHost } from './game-host';
 import type { App } from '../app';
 
+export type ProgressCallback = (stage: string, pct: number, detail: string) => void;
+
 interface GameEntry {
   id: string;
   title: string;
@@ -26,9 +28,24 @@ export class GameLoader {
     return this.games;
   }
 
-  async importFromFile(file: File): Promise<{ success: boolean; error?: string; entry?: GameEntry }> {
+  async importFromFile(
+    file: File,
+    onProgress?: ProgressCallback,
+  ): Promise<{ success: boolean; error?: string; entry?: GameEntry }> {
+    let cancelled = false;
+    const checkCancel = () => { if (cancelled) throw new Error('已取消'); };
+
     try {
-      const zip = await this.extractZip(file);
+      checkCancel();
+      onProgress?.('extract', 0, `正在解析 ${file.name}...`);
+
+      const zip = await this.extractZip(file, (pct, name) => {
+        checkCancel();
+        onProgress?.('extract', pct, `解压: ${name}`);
+      }, checkCancel);
+
+      checkCancel();
+      onProgress?.('validate', 90, '正在验证文件...');
       const validation = this.manifest.validate(zip);
 
       if (!validation.valid) {
@@ -60,16 +77,45 @@ export class GameLoader {
     }
   }
 
-  async importFromUrl(url: string): Promise<{ success: boolean; error?: string; entry?: GameEntry }> {
+  async importFromUrl(
+    url: string,
+    onProgress?: ProgressCallback,
+  ): Promise<{ success: boolean; error?: string; entry?: GameEntry }> {
     try {
+      onProgress?.('download', 0, '正在下载...');
       const response = await fetch(url);
       if (!response.ok) throw new Error(`下载失败: HTTP ${response.status}`);
-      const blob = await response.blob();
+
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('无法读取响应');
+
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (total > 0) {
+          const pct = Math.round((received / total) * 50); // download = 0-50%
+          onProgress?.('download', pct, `下载中 ${this.formatSize(received)} / ${this.formatSize(total)}`);
+        }
+      }
+
+      const blob = new Blob(chunks);
       const file = new File([blob], url.split('/').pop() || 'game.zip', { type: 'application/zip' });
-      return this.importFromFile(file);
+      return this.importFromFile(file, onProgress);
     } catch (err: any) {
       return { success: false, error: err.message || 'URL 导入失败' };
     }
+  }
+
+  private formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   async launch(gameId: string): Promise<void> {
@@ -87,22 +133,38 @@ export class GameLoader {
     this.saveLibrary();
   }
 
-  private async extractZip(file: File): Promise<Array<{ path: string; content?: ArrayBuffer }>> {
+  private async extractZip(
+    file: File,
+    onEntry?: (pct: number, name: string) => void,
+    checkCancel?: () => void,
+  ): Promise<Array<{ path: string; content?: ArrayBuffer }>> {
     const JSZip = (await import('jszip')).default;
     const zip = await JSZip.loadAsync(file);
     const files: Array<{ path: string; content?: ArrayBuffer }> = [];
 
-    const promises: Promise<void>[] = [];
+    // Collect all entries first
+    const entries: Array<{ name: string; entry: any }> = [];
     zip.forEach((relativePath, zipEntry) => {
-      if (zipEntry.dir) return;
-      const normalizedPath = relativePath.replace(/\\/g, '/');
-      const promise = zipEntry.async('arraybuffer').then((data) => {
-        files.push({ path: normalizedPath, content: data });
-      });
-      promises.push(promise);
+      if (!zipEntry.dir) {
+        entries.push({
+          name: relativePath.replace(/\\/g, '/'),
+          entry: zipEntry,
+        });
+      }
     });
 
-    await Promise.all(promises);
+    const total = entries.length;
+    let completed = 0;
+
+    // Process one by one for accurate progress
+    for (const { name, entry } of entries) {
+      checkCancel?.();
+      const data = await entry.async('arraybuffer');
+      files.push({ path: name, content: data });
+      completed++;
+      onEntry?.(Math.round((completed / total) * 100), name);
+    }
+
     return files;
   }
 
