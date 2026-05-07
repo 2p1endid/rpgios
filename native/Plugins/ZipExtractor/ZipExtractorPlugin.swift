@@ -2,13 +2,7 @@ import Capacitor
 import SSZipArchive
 
 @objc(ZipExtractorPlugin)
-public class ZipExtractorPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "ZipExtractorPlugin"
-    public let jsName = "ZipExtractor"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "extract", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getExtractedPath", returnType: CAPPluginReturnPromise),
-    ]
+public class ZipExtractorPlugin: CAPPlugin {
 
     @objc func extract(_ call: CAPPluginCall) {
         guard let zipPath = call.getString("zipPath"),
@@ -18,23 +12,17 @@ public class ZipExtractorPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let fileManager = FileManager.default
+            let fm = FileManager.default
+            try? fm.createDirectory(atPath: destDir, withIntermediateDirectories: true)
 
-            // Ensure destination directory exists
-            try? fileManager.createDirectory(
-                atPath: destDir,
-                withIntermediateDirectories: true
-            )
-
-            var success = false
-            var errorMessage: String?
+            var ok = false
+            var errMsg: String?
 
             do {
                 try SSZipArchive.unzipFile(
                     atPath: zipPath,
                     toDestination: destDir,
                     progressHandler: { (entry, zipInfo, entryNumber, total) in
-                        // Report progress back to JS side
                         let pct = total > 0 ? Int(Double(entryNumber) / Double(total) * 100) : 0
                         DispatchQueue.main.async {
                             self.notifyListeners("progress", data: [
@@ -46,16 +34,16 @@ public class ZipExtractorPlugin: CAPPlugin, CAPBridgedPlugin {
                         }
                     }
                 )
-                success = true
+                ok = true
             } catch {
-                errorMessage = error.localizedDescription
+                errMsg = error.localizedDescription
             }
 
             DispatchQueue.main.async {
-                if success {
+                if ok {
                     call.resolve(["destDir": destDir])
                 } else {
-                    call.reject(errorMessage ?? "Extraction failed")
+                    call.reject(errMsg ?? "Extraction failed")
                 }
             }
         }
@@ -66,13 +54,11 @@ public class ZipExtractorPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("gameId is required")
             return
         }
-
-        let documents = FileManager.default.urls(
+        let destDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
-        let destDir = documents
-            .appendingPathComponent("games", isDirectory: true)
-            .appendingPathComponent(gameId, isDirectory: true)
+        .appendingPathComponent("games", isDirectory: true)
+        .appendingPathComponent(gameId, isDirectory: true)
 
         call.resolve([
             "path": destDir.path,
