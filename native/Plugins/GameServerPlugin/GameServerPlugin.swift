@@ -22,7 +22,7 @@ public class GameServerPlugin: CAPPlugin {
                 GCDWebServerOption_AutomaticallySuspendInBackground: true,
             ])
             self.webServer = server
-            self.serverPort = server.port
+            self.serverPort = Int(server.port)
             call.resolve(["url": "http://127.0.0.1:\(server.port)/", "port": server.port])
         } catch {
             call.reject("Failed to start server: \(error.localizedDescription)")

@@ -15,35 +15,27 @@ public class ZipExtractorPlugin: CAPPlugin {
             let fm = FileManager.default
             try? fm.createDirectory(atPath: destDir, withIntermediateDirectories: true)
 
-            var ok = false
-            var errMsg: String?
-
-            do {
-                try SSZipArchive.unzipFile(
-                    atPath: zipPath,
-                    toDestination: destDir,
-                    progressHandler: { (entry, zipInfo, entryNumber, total) in
-                        let pct = total > 0 ? Int(Double(entryNumber) / Double(total) * 100) : 0
-                        DispatchQueue.main.async {
-                            self.notifyListeners("progress", data: [
-                                "pct": pct,
-                                "current": entry,
-                                "entryNumber": entryNumber,
-                                "total": total,
-                            ])
-                        }
+            let ok = SSZipArchive.unzipFile(
+                atPath: zipPath,
+                toDestination: destDir,
+                progressHandler: { (entry, zipInfo, entryNumber, total) in
+                    let pct = total > 0 ? Int(Double(entryNumber) / Double(total) * 100) : 0
+                    DispatchQueue.main.async {
+                        self.notifyListeners("progress", data: [
+                            "pct": pct,
+                            "current": entry,
+                            "entryNumber": entryNumber,
+                            "total": total,
+                        ])
                     }
-                )
-                ok = true
-            } catch {
-                errMsg = error.localizedDescription
-            }
+                }
+            )
 
             DispatchQueue.main.async {
                 if ok {
                     call.resolve(["destDir": destDir])
                 } else {
-                    call.reject(errMsg ?? "Extraction failed")
+                    call.reject("Extraction failed")
                 }
             }
         }
