@@ -32,7 +32,6 @@ jobs:
           mkdir -p ios/App/App/Plugins
           cp -R native/Plugins/GameServerPlugin ios/App/App/Plugins/GameServerPlugin/
           cp -R native/Plugins/SaveDataPlugin ios/App/App/Plugins/SaveDataPlugin/
-          cp -R native/Plugins/ZipExtractor ios/App/App/Plugins/ZipExtractor/
           cp native/AppDelegate.swift ios/App/App/AppDelegate.swift
           cp native/Podfile ios/App/Podfile
 

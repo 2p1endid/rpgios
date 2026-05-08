@@ -13,8 +13,6 @@ end
 def app_pods
   # Local HTTP server for serving game files
   pod 'GCDWebServer', '~> 3.0'
-  # ZIP extraction with progress support
-  pod 'SSZipArchive', '~> 2.4'
 end
 
 target 'App' do

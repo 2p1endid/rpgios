@@ -54,7 +54,23 @@ export class App {
     document.getElementById('launcher')!.classList.add('hidden');
     document.getElementById('game-view')!.classList.add('active');
 
-    await this.gameHost.loadGame(gamePath);
+    // Resolve URL: on iOS use GameServer, on web use path directly
+    let serverUrl = gamePath;
+    const Capacitor = (window as any).Capacitor;
+    if (Capacitor) {
+      const { GameServer, Filesystem } = Capacitor.Plugins;
+      if (GameServer && Filesystem) {
+        const uriResult = await Filesystem.getUri({
+          path: gamePath,
+          directory: 'DOCUMENTS',
+        });
+        const fullPath = uriResult.uri.replace('file://', '');
+        const result = await GameServer.startServer({ gamePath: fullPath });
+        serverUrl = result.url;
+      }
+    }
+
+    await this.gameHost.loadGame(serverUrl);
 
     this.virtualGamepad.show();
     this.gameOverlay.show();
@@ -70,6 +86,14 @@ export class App {
     this.gameOverlay.hide();
     document.getElementById('game-view')!.classList.remove('active');
     document.getElementById('launcher')!.classList.remove('hidden');
+
+    // Stop GameServer on iOS
+    const Capacitor = (window as any).Capacitor;
+    if (Capacitor) {
+      const { GameServer } = Capacitor.Plugins;
+      GameServer?.stopServer?.();
+    }
+
     this.currentGameId = null;
   }
 
@@ -86,7 +110,6 @@ export class App {
     const gameWindow = this.gameHost.getGameWindow();
     if (!gameWindow) return;
 
-    // Listen for save/load requests from game
     window.addEventListener('message', (event) => {
       if (event.data?.type === 'rpgmaker-save') {
         const { action, savefileId, data } = event.data;

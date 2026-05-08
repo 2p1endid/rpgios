@@ -25,6 +25,11 @@ export class Launcher {
     });
 
     this.refreshGameList();
+
+    // Scan for pre-placed game folders on iOS
+    this.gameLoader.scanGamesDirectory().then((found) => {
+      if (found.length > 0) this.refreshGameList();
+    });
   }
 
   refreshGameList(): void {
